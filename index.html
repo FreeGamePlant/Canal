@@ -1,714 +1,105 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🌱 Free Game Plant • Plataforma de Vídeos</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-  <style>
-    * {
-      scroll-behavior: smooth;
-    }
-    
-    body {
-      background: #0a0f1e;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      transition: background-color 0.3s, color 0.3s;
-    }
-    
-    /* Light mode */
-    body.light-mode {
-      background: #f3f4f6;
-      color: #1f2937;
-    }
-    body.light-mode .bg-slate-900,
-    body.light-mode .bg-slate-800,
-    body.light-mode .bg-slate-800\/95,
-    body.light-mode .bg-black\/80 {
-      background-color: #ffffff !important;
-      backdrop-filter: none;
-    }
-    body.light-mode .text-white,
-    body.light-mode .text-slate-400 {
-      color: #1f2937 !important;
-    }
-    body.light-mode .border-emerald-500\/30,
-    body.light-mode .border-emerald-500\/20 {
-      border-color: #10b98140 !important;
-    }
-    body.light-mode .bg-slate-700 {
-      background-color: #e5e7eb !important;
-    }
-    body.light-mode .hover\:bg-slate-700:hover {
-      background-color: #d1d5db !important;
-    }
-    
-    /* Sidebar animation */
-    .sidebar {
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      will-change: transform;
-      transform: translateX(-100%);
-    }
-    
-    .sidebar.sidebar-visible {
-      transform: translateX(0);
-    }
-    
-    /* Video card hover effect */
-    .video-card {
-      transition: all 0.3s ease;
-      cursor: pointer;
-    }
-    
-    .video-card:hover {
-      transform: translateY(-4px);
-    }
-    
-    .video-card img {
-      transition: transform 0.3s ease;
-    }
-    
-    .video-card:hover img {
-      transform: scale(1.05);
-    }
-    
-    /* Custom scrollbar */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: #1e293b;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: #10b981;
-      border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: #059669;
-    }
-    
-    /* Player container */
-    .player-wrapper {
-      position: relative;
-      padding-bottom: 56.25%;
-      height: 0;
-      overflow: hidden;
-      border-radius: 1rem;
-      background: #000;
-    }
-    
-    .player-wrapper iframe {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
-    
-    /* Toast notification */
-    .toast {
-      animation: slideUp 0.3s ease-out;
-    }
-    
-    @keyframes slideUp {
-      from {
-        transform: translateY(100%);
-        opacity: 0;
+<!-- Troque suas seções manuais por isso -->
+<section class="space-y-12">
+  <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
+    <i class="fas fa-video text-emerald-400 text-3xl"></i>
+    Todos os vídeos do canal
+  </h3>
+
+  <div id="allVideosGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5"></div>
+</section>
+
+<script>
+  const API_KEY = "SUA_CHAVE_DA_API";
+  const CHANNEL_ID = "SEU_CHANNEL_ID";
+  const grid = document.getElementById("allVideosGrid");
+  const playerFrame = document.getElementById("playerFrame");
+  const currentTitleEl = document.getElementById("currentTitle");
+
+  function escapeHtml(str = "") {
+    return str.replace(/[&<>"']/g, m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[m]));
+  }
+
+  async function fetchUploadsPlaylistId() {
+    const url = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${CHANNEL_ID}&key=${API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!data.items || !data.items.length) throw new Error("Canal não encontrado.");
+    return data.items[0].contentDetails.relatedPlaylists.uploads;
+  }
+
+  async function fetchAllVideosFromUploads(playlistId) {
+    let pageToken = "";
+    const videos = [];
+
+    while (true) {
+      const url =
+        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails` +
+        `&maxResults=50&playlistId=${playlistId}&pageToken=${pageToken}&key=${API_KEY}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!data.items) break;
+
+      for (const item of data.items) {
+        const sn = item.snippet;
+        const videoId = sn.resourceId?.videoId;
+        if (!videoId) continue;
+
+        videos.push({
+          id: videoId,
+          title: sn.title || "Vídeo sem título",
+          thumb:
+            sn.thumbnails?.medium?.url ||
+            sn.thumbnails?.high?.url ||
+            sn.thumbnails?.default?.url ||
+            `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+        });
       }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-    
-    /* Scroll to top button */
-    #scrollTop {
-      position: fixed;
-      bottom: 30px;
-      right: 30px;
-      background: #10b981;
-      color: white;
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.3s;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-      z-index: 40;
-    }
-    #scrollTop.visible {
-      opacity: 1;
-    }
-    #scrollTop:hover {
-      background: #059669;
-      transform: scale(1.05);
-    }
-  </style>
-</head>
-<body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950">
 
-  <!-- HEADER FIXO -->
-  <header class="bg-black/80 backdrop-blur-lg border-b border-emerald-500/30 py-4 px-6 flex items-center justify-between shadow-2xl fixed w-full top-0 z-50">
-    <div class="flex items-center gap-4">
-      <button id="toggleBtn" class="text-3xl font-bold text-emerald-400 hover:text-emerald-300 transition-colors">
-        <i class="fas fa-bars"></i>
-      </button>
-      <div class="flex items-center gap-3">
-        <div class="text-3xl">🌱</div>
-        <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-emerald-200 bg-clip-text text-transparent">
-          Free Game Plant
-        </h1>
-        <span class="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1 rounded-full hidden sm:inline-block">
-          <i class="fas fa-shield-alt mr-1"></i>Modo Seguro
-        </span>
+      if (!data.nextPageToken) break;
+      pageToken = data.nextPageToken;
+    }
+
+    return videos;
+  }
+
+  function changeVideo(id, title) {
+    playerFrame.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&controls=1&iv_load_policy=3`;
+    currentTitleEl.textContent = title;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function renderVideos(videos) {
+    grid.innerHTML = videos.map(v => `
+      <div class="video-card" data-video-id="${v.id}" data-video-title="${escapeHtml(v.title)}" data-title="${escapeHtml(v.title)}">
+        <img src="${v.thumb}" alt="${escapeHtml(v.title)}" class="rounded-xl w-full object-cover">
+        <p class="mt-2 font-semibold text-sm">${escapeHtml(v.title)}</p>
       </div>
-    </div>
-    
-    <div class="flex items-center gap-4">
-      <div class="relative hidden md:block">
-        <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-sm"></i>
-        <input type="text" id="searchInput" placeholder="Buscar vídeos..." class="bg-slate-800/80 text-white pl-10 pr-5 py-2 rounded-full w-80 outline-none focus:ring-2 focus:ring-emerald-500 transition-all border border-slate-700 focus:border-emerald-500">
-      </div>
-      <button id="maisBtn" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg">
-        <i class="fas fa-cog mr-2"></i>MAIS
-      </button>
-    </div>
-  </header>
+    `).join("");
 
-  <div class="flex pt-20 min-h-screen">
-
-    <!-- SIDEBAR (INICIALMENTE FECHADA) -->
-    <nav id="sidebar" class="sidebar w-80 bg-slate-800/95 backdrop-blur-sm h-screen overflow-y-auto border-r border-emerald-500/30 fixed top-0 left-0 z-40 shadow-2xl">
-      <div class="sticky top-0 bg-slate-800/95 backdrop-blur-sm p-4 border-b border-emerald-500/30">
-        <button id="closeSidebar" class="text-2xl text-red-400 hover:text-red-300 float-right transition-colors">
-          <i class="fas fa-times-circle"></i>
-        </button>
-        <div class="flex items-center gap-3 pt-2">
-          <i class="fas fa-seedling text-3xl text-emerald-400"></i>
-          <h2 class="text-xl font-bold">Explorar</h2>
-        </div>
-      </div>
-      
-      <ul class="p-4 space-y-2">
-        <li class="bg-emerald-600/20 text-emerald-300 px-5 py-3 rounded-xl font-bold flex items-center gap-3">
-          <i class="fas fa-play-circle"></i> Todos os Conteúdos
-        </li>
-        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="siu2d">
-          <i class="fas fa-gamepad text-emerald-400"></i> SIU2D Série
-        </li>
-        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="drplant">
-          <i class="fas fa-leaf text-emerald-400"></i> Dr Plant Adventures
-        </li>
-        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="dininho">
-          <i class="fas fa-star text-emerald-400"></i> Show do Dininho
-        </li>
-        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="dinoelai">
-          <i class="fas fa-dragon text-emerald-400"></i> Dinoelai Adventures
-        </li>
-        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="outros">
-          <i class="fas fa-globe text-emerald-400"></i> Outros Conteúdos
-        </li>
-      </ul>
-      
-      <div class="absolute bottom-0 left-0 right-0 p-6 border-t border-emerald-500/30 bg-slate-800/95">
-        <div class="text-sm text-slate-400">
-          <i class="fas fa-copyright mr-1"></i> Free Game Plant 2024
-        </div>
-      </div>
-    </nav>
-
-    <!-- MAIN CONTENT -->
-    <main class="flex-1 p-6 md:p-8 ml-0 transition-all">
-      
-      <!-- PLAYER PRINCIPAL (SEM BRANDING YOUTUBE) -->
-      <section class="mb-12">
-        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-500/20">
-          <div class="player-wrapper">
-            <iframe id="playerFrame" 
-                    src="https://www.youtube.com/embed/OExq6YaOzTE?rel=0&modestbranding=1&showinfo=0&controls=1&color=white&iv_load_policy=3&disablekb=1&cc_load_policy=0" 
-                    allowfullscreen>
-            </iframe>
-          </div>
-          <div class="p-6">
-            <div class="flex items-start justify-between flex-wrap gap-4">
-              <div class="flex-1">
-                <h2 id="currentTitle" class="text-2xl md:text-3xl font-bold text-white mb-2">SIU2D - Trailer Oficial</h2>
-                <!-- Visualizações e data removidas -->
-              </div>
-              <div class="flex gap-3">
-                <button id="favoriteBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-all">
-                  <i class="far fa-heart mr-2"></i>Favoritar
-                </button>
-                <button id="shareBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-all">
-                  <i class="fas fa-share-alt mr-2"></i>Compartilhar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- CATEGORIES COM FILTRO DINÂMICO -->
-      <div class="mb-8 flex flex-wrap gap-3">
-        <button class="filter-btn active bg-emerald-600 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-500" data-filter="all">
-          <i class="fas fa-th-large mr-2"></i>Todos
-        </button>
-        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="siu2d">
-          <i class="fas fa-gamepad mr-2"></i>SIU2D
-        </button>
-        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="drplant">
-          <i class="fas fa-leaf mr-2"></i>Dr Plant
-        </button>
-        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="dininho">
-          <i class="fas fa-star mr-2"></i>Dininho
-        </button>
-        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="dinoelai">
-          <i class="fas fa-dragon mr-2"></i>Dinoelai
-        </button>
-      </div>
-
-      <!-- PLAYLISTS -->
-      <section class="space-y-12" id="videoSections">
-        
-        <!-- SIU2D Série -->
-        <div id="siu2d" class="playlist-section category-section" data-category="siu2d">
-          <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-            <i class="fas fa-gamepad text-emerald-400 text-3xl"></i>
-            Simulador do Incrível Universo 2D
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            <div class="video-card" data-title="SIU2D - Trailer Oficial" data-video-id="OExq6YaOzTE" data-video-title="SIU2D - Trailer Oficial">
-              <img src="https://i.ytimg.com/vi/OExq6YaOzTE/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Trailer Game</p>
-              <p class="text-xs text-slate-400">2:34</p>
-            </div>
-            <div class="video-card" data-title="SIU2D - Ep.1: Criando Planetas" data-video-id="5cyUGh5OO_k" data-video-title="SIU2D - Ep.1: Criando Planetas">
-              <img src="https://i.ytimg.com/vi/5cyUGh5OO_k/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.1: Criando Planetas</p>
-              <p class="text-xs text-slate-400">8:45</p>
-            </div>
-            <div class="video-card" data-title="SIU2D - Ep.2: Modificar Planetas" data-video-id="nYK6Uv_SLeM" data-video-title="SIU2D - Ep.2: Modificar Planetas">
-              <img src="https://i.ytimg.com/vi/nYK6Uv_SLeM/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.2: Modificar Astros</p>
-              <p class="text-xs text-slate-400">10:12</p>
-            </div>
-            <div class="video-card" data-title="SIU2D - Loading Screen Intro" data-video-id="fVk-87v3e08" data-video-title="SIU2D - Loading Screen Intro">
-              <img src="https://i.ytimg.com/vi/fVk-87v3e08/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Loading Screen Intro</p>
-              <p class="text-xs text-slate-400">1:23</p>
-            </div>
-            <div class="video-card" data-title="SIU2D - Traveling through the cosmos" data-video-id="xi64kgbQcr0" data-video-title="SIU2D - Traveling through the cosmos">
-              <img src="https://i.ytimg.com/vi/xi64kgbQcr0/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Soundtrack 1</p>
-              <p class="text-xs text-slate-400">3:45</p>
-            </div>
-            <div class="video-card" data-title="SIU2D - The Universal Rock Star" data-video-id="LqElTS9vwvo" data-video-title="SIU2D - The Universal Rock Star">
-              <img src="https://i.ytimg.com/vi/LqElTS9vwvo/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Soundtrack 2</p>
-              <p class="text-xs text-slate-400">4:12</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Dr Plant's Adventures -->
-        <div id="drplant" class="playlist-section category-section" data-category="drplant">
-          <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-            <i class="fas fa-leaf text-emerald-400 text-3xl"></i>
-            Dr Plant's Adventures
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            <div class="video-card" data-title="Dr Plant ep:1 The dusty war" data-video-id="A9vRlmo8orM" data-video-title="Dr Plant ep:1 The dusty war">
-              <img src="https://i.ytimg.com/vi/A9vRlmo8orM/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.1: The dusty war</p>
-            </div>
-            <div class="video-card" data-title="Dr Plant ep:2 The Marine Checkmate" data-video-id="cTwPnysZ8xE" data-video-title="Dr Plant ep:2 The Marine Checkmate">
-              <img src="https://i.ytimg.com/vi/cTwPnysZ8xE/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.2: The Marine Checkmate</p>
-            </div>
-            <div class="video-card" data-title="Dr Plant Battle: Last Man Standing" data-video-id="yw8QlT9vUOs" data-video-title="Dr Plant Battle: Last Man Standing">
-              <img src="https://i.ytimg.com/vi/yw8QlT9vUOs/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Battle: Dr Plant x Bandit</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Show do Dininho -->
-        <div id="dininho" class="playlist-section category-section" data-category="dininho">
-          <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-            <i class="fas fa-star text-emerald-400 text-3xl"></i>
-            Show do Dininho
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            <div class="video-card" data-title="Show do Dininho ep1" data-video-id="hTYQddU9jfQ" data-video-title="Show do Dininho ep1">
-              <img src="https://i.ytimg.com/vi/hTYQddU9jfQ/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.1</p>
-            </div>
-            <div class="video-card" data-title="Show do Dininho ep2" data-video-id="rHirE6Esnzs" data-video-title="Show do Dininho ep2">
-              <img src="https://i.ytimg.com/vi/rHirE6Esnzs/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.2</p>
-            </div>
-            <div class="video-card" data-title="Show do Dininho ep3: Soletrar Sorvete" data-video-id="kLgGOvsQMvA" data-video-title="Show do Dininho ep3: Soletrar Sorvete">
-              <img src="https://i.ytimg.com/vi/kLgGOvsQMvA/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.3: Soletrar Sorvete</p>
-            </div>
-            <div class="video-card" data-title="Show do Dininho ep4" data-video-id="UVIrDDgM-LE" data-video-title="Show do Dininho ep4">
-              <img src="https://i.ytimg.com/vi/UVIrDDgM-LE/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.4</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Dinoelai Adventures -->
-        <div id="dinoelai" class="playlist-section category-section" data-category="dinoelai">
-          <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-            <i class="fas fa-dragon text-emerald-400 text-3xl"></i>
-            Dinoelai Adventures
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            <div class="video-card" data-title="Dinoelai ep6: Sarcastic Circus" data-video-id="pFu3C2PXM3o" data-video-title="Dinoelai ep6: Sarcastic Circus">
-              <img src="https://i.ytimg.com/vi/pFu3C2PXM3o/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Ep.6: Sarcastic Circus</p>
-            </div>
-            <div class="video-card" data-title="Dinoelai Carrot Cake trap" data-video-id="IFlBDCQ34GQ" data-video-title="Dinoelai Carrot Cake trap">
-              <img src="https://i.ytimg.com/vi/IFlBDCQ34GQ/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Carrot Cake trap</p>
-            </div>
-            <div class="video-card" data-title="DLB's A Incrível liga do Dinoelai" data-video-id="_aJXWseR-ng" data-video-title="DLB's A Incrível liga do Dinoelai">
-              <img src="https://i.ytimg.com/vi/_aJXWseR-ng/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">A Incrível liga</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Outros Conteúdos -->
-        <div id="outros" class="playlist-section category-section" data-category="outros">
-          <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-            <i class="fas fa-globe text-emerald-400 text-3xl"></i>
-            Outros Conteúdos & Clássicos
-          </h3>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-            <div class="video-card" data-title="A Incrível Planolândia! 2D vs 3D vs 4D" data-video-id="p5fvlqzahN0" data-video-title="A Incrível Planolândia! 2D vs 3D vs 4D">
-              <img src="https://i.ytimg.com/vi/p5fvlqzahN0/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Planolândia 2D/3D/4D</p>
-            </div>
-            <div class="video-card" data-title="The Origin of the Universe" data-video-id="ThIApGczg14" data-video-title="The Origin of the Universe">
-              <img src="https://i.ytimg.com/vi/ThIApGczg14/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Big Bang do T Singularity</p>
-            </div>
-            <div class="video-card" data-title="O Maior Trauma dos OIB's" data-video-id="vJd4c4rynWg" data-video-title="O Maior Trauma dos OIB's">
-              <img src="https://i.ytimg.com/vi/vJd4c4rynWg/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Trauma dos OIB's</p>
-            </div>
-            <div class="video-card" data-title="Pato De Sapato! Ep.1" data-video-id="B08X2Nugn3E" data-video-title="Pato De Sapato! Ep.1">
-              <img src="https://i.ytimg.com/vi/B08X2Nugn3E/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Pato De Sapato Ep.1</p>
-            </div>
-            <div class="video-card" data-title="Zinco and Casufa Paleozoico Ep4" data-video-id="TOwOPlCNgWM" data-video-title="Zinco and Casufa Paleozoico Ep4">
-              <img src="https://i.ytimg.com/vi/TOwOPlCNgWM/hqdefault.jpg" class="rounded-xl w-full object-cover">
-              <p class="mt-2 font-semibold text-sm">Zinco and Casufa Ep.4</p>
-            </div>
-          </div>
-        </div>
-      </section>
-      
-      <!-- Mensagem de busca sem resultados -->
-      <div id="noResults" class="text-center py-12 hidden">
-        <i class="fas fa-search text-6xl text-slate-600 mb-4"></i>
-        <p class="text-xl text-slate-400">Nenhum vídeo encontrado :(</p>
-        <p class="text-slate-500">Tente outro termo ou remova os filtros.</p>
-      </div>
-    </main>
-  </div>
-
-  <!-- MENU MAIS (CORRIGIDO) -->
-  <div id="menuMais" class="hidden fixed right-6 bottom-6 bg-slate-800/95 backdrop-blur-lg border-2 border-emerald-500 p-6 rounded-2xl shadow-2xl w-96 z-50">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="font-bold text-xl flex items-center gap-2">
-        <i class="fas fa-cog text-emerald-400"></i> Configurações
-      </h3>
-      <button id="closeMaisBtn" class="text-slate-400 hover:text-white text-xl">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="space-y-3">
-      <button id="themeToggle" class="block w-full text-left py-3 px-4 hover:bg-slate-700 rounded-lg transition-all">
-        <i class="fas fa-moon mr-3 text-emerald-400"></i> Modo Escuro / Claro
-      </button>
-      <button id="fullscreenBtn" class="block w-full text-left py-3 px-4 hover:bg-slate-700 rounded-lg transition-all">
-        <i class="fas fa-expand mr-3 text-emerald-400"></i> Modo Tela Cheia
-      </button>
-      <button id="supportBtn" class="block w-full text-left py-3 px-4 hover:bg-slate-700 rounded-lg transition-all">
-        <i class="fas fa-headset mr-3 text-emerald-400"></i> Fale com o Elai (Suporte)
-      </button>
-      <hr class="my-3 border-slate-600">
-      <button id="closeMaisBtn2" class="w-full bg-red-600 hover:bg-red-500 py-3 rounded-lg font-bold transition-all">
-        <i class="fas fa-door-closed mr-2"></i> Fechar
-      </button>
-    </div>
-  </div>
-
-  <!-- Botão voltar ao topo -->
-  <div id="scrollTop" class="hidden md:flex">
-    <i class="fas fa-arrow-up text-xl"></i>
-  </div>
-
-  <script>
-    // ========== ELEMENTOS ==========
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('toggleBtn');
-    const closeSidebarBtn = document.getElementById('closeSidebar');
-    const playerFrame = document.getElementById('playerFrame');
-    const currentTitleEl = document.getElementById('currentTitle');
-    const favoriteBtn = document.getElementById('favoriteBtn');
-    const shareBtn = document.getElementById('shareBtn');
-    const searchInput = document.getElementById('searchInput');
-    const filterBtns = document.querySelectorAll('.filter-btn');
-    const sections = document.querySelectorAll('.category-section');
-    const videoCards = document.querySelectorAll('.video-card');
-    const noResultsDiv = document.getElementById('noResults');
-    const scrollTopBtn = document.getElementById('scrollTop');
-    const maisBtn = document.getElementById('maisBtn');
-    const menuMais = document.getElementById('menuMais');
-    const closeMaisBtns = document.querySelectorAll('#closeMaisBtn, #closeMaisBtn2');
-    
-    // ========== SIDEBAR ==========
-    function openSidebar() {
-      sidebar.classList.add('sidebar-visible');
-    }
-    function closeSidebar() {
-      sidebar.classList.remove('sidebar-visible');
-    }
-    toggleBtn.onclick = openSidebar;
-    closeSidebarBtn.onclick = closeSidebar;
-    
-    // ========== FUNÇÃO DE TROCA DE VÍDEO ==========
-    function changeVideo(id, title) {
-      // Atualiza o iframe com parâmetros que removem branding e recomendados externos
-      playerFrame.src = `https://www.youtube.com/embed/${id}?rel=0&modestbranding=1&showinfo=0&controls=1&color=white&iv_load_policy=3&disablekb=1&cc_load_policy=0`;
-      currentTitleEl.textContent = title;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      showToast(`▶️ Reproduzindo: ${title}`);
-    }
-    
-    // Adicionar evento de clique para cada card de vídeo
-    videoCards.forEach(card => {
-      card.addEventListener('click', () => {
-        const videoId = card.getAttribute('data-video-id');
-        const videoTitle = card.getAttribute('data-video-title');
-        if (videoId && videoTitle) {
-          changeVideo(videoId, videoTitle);
-        }
+    grid.querySelectorAll(".video-card").forEach(card => {
+      card.addEventListener("click", () => {
+        changeVideo(card.dataset.videoId, card.dataset.videoTitle);
       });
     });
-    
-    // ========== TOAST ==========
-    function showToast(message) {
-      let toast = document.createElement('div');
-      toast.className = 'fixed bottom-20 right-6 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl toast z-50';
-      toast.innerHTML = `<i class="fas fa-play-circle mr-2"></i>${message}`;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
+  }
+
+  async function loadChannelVideos() {
+    try {
+      const uploadsPlaylistId = await fetchUploadsPlaylistId();
+      const videos = await fetchAllVideosFromUploads(uploadsPlaylistId);
+      renderVideos(videos);
+    } catch (err) {
+      grid.innerHTML = `<p class="text-slate-300">Não consegui carregar os vídeos: ${escapeHtml(err.message)}</p>`;
     }
-    
-    // ========== FAVORITOS ==========
-    function addToFavorites() {
-      const currentTitle = currentTitleEl.textContent;
-      let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-      if (!favorites.includes(currentTitle)) {
-        favorites.push(currentTitle);
-        localStorage.setItem('favorites', JSON.stringify(favorites));
-        showToast('❤️ Vídeo adicionado aos favoritos!');
-      } else {
-        showToast('⚠️ Este vídeo já está nos favoritos!');
-      }
-    }
-    favoriteBtn.onclick = addToFavorites;
-    
-    // ========== COMPARTILHAR ==========
-    function shareVideo() {
-      const currentTitle = currentTitleEl.textContent;
-      const currentUrl = window.location.href;
-      if (navigator.share) {
-        navigator.share({
-          title: currentTitle,
-          text: 'Assista este vídeo incrível no Free Game Plant!',
-          url: currentUrl,
-        }).catch(() => copyLink());
-      } else {
-        copyLink();
-      }
-    }
-    function copyLink() {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('📋 Link copiado para a área de transferência!');
-    }
-    shareBtn.onclick = shareVideo;
-    
-    // ========== FILTROS POR CATEGORIA ==========
-    function applyFilters() {
-      const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
-      sections.forEach(section => {
-        if (activeFilter === 'all') {
-          section.style.display = 'block';
-        } else {
-          section.style.display = section.dataset.category === activeFilter ? 'block' : 'none';
-        }
-      });
-      // Reaplica a busca após filtro
-      if (searchInput.value.trim() !== '') {
-        filterVideosBySearch();
-      } else {
-        // Se não há busca, garante que todos os cards apareçam
-        document.querySelectorAll('.video-card').forEach(card => card.style.display = 'block');
-        noResultsDiv.classList.add('hidden');
-      }
-    }
-    
-    filterBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        filterBtns.forEach(b => b.classList.remove('bg-emerald-600', 'active'));
-        btn.classList.add('bg-emerald-600', 'active');
-        applyFilters();
-      });
-    });
-    
-    // ========== BUSCA ==========
-    function filterVideosBySearch() {
-      const term = searchInput.value.toLowerCase().trim();
-      let anyVisible = false;
-      
-      // Para cada card, verifica se o título contém o termo
-      videoCards.forEach(card => {
-        const titleAttr = card.getAttribute('data-title') || '';
-        const titleElement = card.querySelector('p')?.textContent || '';
-        const match = titleAttr.toLowerCase().includes(term) || titleElement.toLowerCase().includes(term);
-        if (term === '') {
-          card.style.display = 'block';
-          anyVisible = true;
-        } else {
-          card.style.display = match ? 'block' : 'none';
-          if (match) anyVisible = true;
-        }
-      });
-      
-      // Esconde seções vazias (opcional)
-      sections.forEach(section => {
-        const visibleCards = section.querySelectorAll('.video-card[style="display: block"]').length;
-        if (visibleCards === 0 && term !== '') {
-          section.style.display = 'none';
-        } else if (document.querySelector('.filter-btn.active').dataset.filter === 'all' || section.dataset.category === document.querySelector('.filter-btn.active').dataset.filter) {
-          section.style.display = 'block';
-        }
-      });
-      
-      if (!anyVisible && term !== '') {
-        noResultsDiv.classList.remove('hidden');
-      } else {
-        noResultsDiv.classList.add('hidden');
-      }
-    }
-    
-    searchInput.addEventListener('input', () => {
-      filterVideosBySearch();
-    });
-    
-    // ========== MENU MAIS (FUNCIONALIDADES CORRIGIDAS) ==========
-    function openMais() {
-      menuMais.classList.remove('hidden');
-    }
-    function closeMais() {
-      menuMais.classList.add('hidden');
-    }
-    maisBtn.onclick = openMais;
-    closeMaisBtns.forEach(btn => btn.onclick = closeMais);
-    
-    // Alternar tema claro/escuro
-    document.getElementById('themeToggle').addEventListener('click', () => {
-      document.body.classList.toggle('light-mode');
-      const icon = document.querySelector('#themeToggle i');
-      if (document.body.classList.contains('light-mode')) {
-        icon.className = 'fas fa-sun mr-3 text-emerald-400';
-      } else {
-        icon.className = 'fas fa-moon mr-3 text-emerald-400';
-      }
-      closeMais();
-    });
-    
-    // Tela cheia do player
-    document.getElementById('fullscreenBtn').addEventListener('click', () => {
-      const player = document.querySelector('.player-wrapper');
-      if (player.requestFullscreen) {
-        player.requestFullscreen();
-      } else if (player.webkitRequestFullscreen) {
-        player.webkitRequestFullscreen();
-      } else if (player.msRequestFullscreen) {
-        player.msRequestFullscreen();
-      }
-      closeMais();
-    });
-    
-    // Suporte (fale com o Elai)
-    document.getElementById('supportBtn').addEventListener('click', () => {
-      alert('📧 Entre em contato pelo e-mail: freegameplant@contato.com\nOu pelo Instagram: @freegameplant');
-      closeMais();
-    });
-    
-    // Fechar menu ao clicar fora
-    document.addEventListener('click', (e) => {
-      if (!menuMais.classList.contains('hidden')) {
-        if (!menuMais.contains(e.target) && e.target !== maisBtn && !maisBtn.contains(e.target)) {
-          closeMais();
-        }
-      }
-    });
-    
-    // ========== SIDEBAR NAVEGAÇÃO ==========
-    document.querySelectorAll('.category-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const category = item.dataset.category;
-        const section = document.getElementById(category);
-        if (section) {
-          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          closeSidebar();
-        }
-      });
-    });
-    
-    // ========== BOTÃO VOLTAR AO TOPO ==========
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 300) {
-        scrollTopBtn.classList.add('visible');
-      } else {
-        scrollTopBtn.classList.remove('visible');
-      }
-    });
-    scrollTopBtn.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-    
-    // ========== INICIALIZAÇÃO ==========
-    // Garantir que o filtro inicial "Todos" está ativo
-    document.querySelector('.filter-btn[data-filter="all"]').classList.add('active', 'bg-emerald-600');
-    applyFilters();
-  </script>
-  
-  <footer class="text-center py-8 text-slate-400 text-sm border-t border-emerald-500/20 mt-12">
-    <div class="container mx-auto">
-      <p class="flex items-center justify-center gap-2">
-        <i class="fas fa-seedling text-emerald-500"></i>
-        Free Game Plant • Conteúdo Seguro para Todas as Idades
-      </p>
-      <p class="mt-2">© 2024 Free Game Plant - Todos os direitos reservados</p>
-    </div>
-  </footer>
-</body>
-</html>
+  }
+
+  loadChannelVideos();
+</script>
