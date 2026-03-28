@@ -1,39 +1,564 @@
-<!-- Troque suas seções manuais por isso -->
-<section class="space-y-12">
-  <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
-    <i class="fas fa-video text-emerald-400 text-3xl"></i>
-    Todos os vídeos do canal
-  </h3>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🌱 Free Game Plant • Plataforma de Vídeos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <style>
+    * { scroll-behavior: smooth; }
 
-  <div id="allVideosGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5"></div>
-</section>
+    body {
+      background: #0a0f1e;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      transition: background-color .3s, color .3s;
+    }
 
-<script>
-  const API_KEY = "SUA_CHAVE_DA_API";
-  const CHANNEL_ID = "SEU_CHANNEL_ID";
-  const grid = document.getElementById("allVideosGrid");
-  const playerFrame = document.getElementById("playerFrame");
-  const currentTitleEl = document.getElementById("currentTitle");
+    body.light-mode {
+      background: #f3f4f6;
+      color: #1f2937;
+    }
+    body.light-mode .bg-slate-900,
+    body.light-mode .bg-slate-800,
+    body.light-mode .bg-slate-800\/95,
+    body.light-mode .bg-black\/80 {
+      background-color: #ffffff !important;
+      backdrop-filter: none;
+    }
+    body.light-mode .text-white,
+    body.light-mode .text-slate-400,
+    body.light-mode .text-slate-500,
+    body.light-mode .text-slate-300 {
+      color: #1f2937 !important;
+    }
+    body.light-mode .border-emerald-500\/30,
+    body.light-mode .border-emerald-500\/20 {
+      border-color: #10b98140 !important;
+    }
+    body.light-mode .bg-slate-700,
+    body.light-mode .hover\:bg-slate-700:hover {
+      background-color: #e5e7eb !important;
+    }
 
-  function escapeHtml(str = "") {
-    return str.replace(/[&<>"']/g, m => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    }[m]));
-  }
+    .sidebar {
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      will-change: transform;
+      transform: translateX(-100%);
+    }
+    .sidebar.sidebar-visible { transform: translateX(0); }
 
-  async function fetchUploadsPlaylistId() {
-    const url = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${CHANNEL_ID}&key=${API_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!data.items || !data.items.length) throw new Error("Canal não encontrado.");
-    return data.items[0].contentDetails.relatedPlaylists.uploads;
-  }
+    .video-card {
+      transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease;
+      cursor: pointer;
+    }
+    .video-card:hover { transform: translateY(-4px); }
+    .video-card img { transition: transform .25s ease; }
+    .video-card:hover img { transform: scale(1.05); }
 
-  async function fetchAllVideosFromUploads(playlistId) {
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #059669; }
+
+    .player-wrapper {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      border-radius: 1rem;
+      background: #000;
+    }
+    .player-wrapper iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    .toast { animation: slideUp .3s ease-out; }
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    #scrollTop {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      background: #10b981;
+      color: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .3s, transform .2s;
+      box-shadow: 0 2px 10px rgba(0,0,0,.3);
+      z-index: 40;
+    }
+    #scrollTop.visible { opacity: 1; }
+    #scrollTop:hover { background: #059669; transform: scale(1.05); }
+
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .35rem .75rem;
+      border-radius: 9999px;
+      background: rgba(16,185,129,.12);
+      border: 1px solid rgba(16,185,129,.22);
+      color: #a7f3d0;
+      font-size: .8rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950">
+  <header class="bg-black/80 backdrop-blur-lg border-b border-emerald-500/30 py-4 px-6 flex items-center justify-between shadow-2xl fixed w-full top-0 z-50">
+    <div class="flex items-center gap-4">
+      <button id="toggleBtn" class="text-3xl font-bold text-emerald-400 hover:text-emerald-300 transition-colors">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="flex items-center gap-3">
+        <div class="text-3xl">🌱</div>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-emerald-200 bg-clip-text text-transparent">Free Game Plant</h1>
+        <span class="bg-emerald-500/20 text-emerald-300 text-xs px-3 py-1 rounded-full hidden sm:inline-block">
+          <i class="fas fa-shield-alt mr-1"></i>Modo Seguro
+        </span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="relative hidden md:block">
+        <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 text-sm"></i>
+        <input type="text" id="searchInput" placeholder="Buscar vídeos..." class="bg-slate-800/80 text-white pl-10 pr-5 py-2 rounded-full w-80 outline-none focus:ring-2 focus:ring-emerald-500 transition-all border border-slate-700 focus:border-emerald-500">
+      </div>
+      <button id="maisBtn" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg">
+        <i class="fas fa-cog mr-2"></i>MAIS
+      </button>
+    </div>
+  </header>
+
+  <div class="flex pt-20 min-h-screen">
+    <nav id="sidebar" class="sidebar w-80 bg-slate-800/95 backdrop-blur-sm h-screen overflow-y-auto border-r border-emerald-500/30 fixed top-0 left-0 z-40 shadow-2xl">
+      <div class="sticky top-0 bg-slate-800/95 backdrop-blur-sm p-4 border-b border-emerald-500/30">
+        <button id="closeSidebar" class="text-2xl text-red-400 hover:text-red-300 float-right transition-colors">
+          <i class="fas fa-times-circle"></i>
+        </button>
+        <div class="flex items-center gap-3 pt-2">
+          <i class="fas fa-seedling text-3xl text-emerald-400"></i>
+          <h2 class="text-xl font-bold">Explorar</h2>
+        </div>
+      </div>
+
+      <ul class="p-4 space-y-2">
+        <li class="bg-emerald-600/20 text-emerald-300 px-5 py-3 rounded-xl font-bold flex items-center gap-3">
+          <i class="fas fa-play-circle"></i> Todos os Conteúdos
+        </li>
+        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="siu2d">
+          <i class="fas fa-gamepad text-emerald-400"></i> SIU2D Série
+        </li>
+        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="drplant">
+          <i class="fas fa-leaf text-emerald-400"></i> Dr Plant Adventures
+        </li>
+        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="dininho">
+          <i class="fas fa-star text-emerald-400"></i> Show do Dininho
+        </li>
+        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="dinoelai">
+          <i class="fas fa-dragon text-emerald-400"></i> Dinoelai Adventures
+        </li>
+        <li class="px-5 py-3 hover:bg-slate-700 rounded-xl cursor-pointer transition-all flex items-center gap-3 category-item" data-category="outros">
+          <i class="fas fa-globe text-emerald-400"></i> Outros Conteúdos
+        </li>
+      </ul>
+
+      <div class="absolute bottom-0 left-0 right-0 p-6 border-t border-emerald-500/30 bg-slate-800/95">
+        <div class="text-sm text-slate-400">
+          <i class="fas fa-copyright mr-1"></i> Free Game Plant 2024
+        </div>
+      </div>
+    </nav>
+
+    <main class="flex-1 p-6 md:p-8 ml-0 transition-all">
+      <section class="mb-8">
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-emerald-500/20">
+          <div class="player-wrapper">
+            <iframe id="playerFrame" src="https://www.youtube-nocookie.com/embed/OExq6YaOzTE?rel=0&modestbranding=1&controls=1&iv_load_policy=3" allowfullscreen></iframe>
+          </div>
+          <div class="p-6">
+            <div class="flex items-start justify-between flex-wrap gap-4">
+              <div class="flex-1">
+                <h2 id="currentTitle" class="text-2xl md:text-3xl font-bold text-white mb-2">SIU2D - Trailer Oficial</h2>
+                <p id="currentCategory" class="text-slate-400">Categoria: SIU2D Série</p>
+              </div>
+              <div class="flex gap-3">
+                <button id="favoriteBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-all">
+                  <i class="far fa-heart mr-2"></i>Favoritar
+                </button>
+                <button id="shareBtn" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-all">
+                  <i class="fas fa-share-alt mr-2"></i>Compartilhar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="mb-8 flex flex-wrap gap-3">
+        <button class="filter-btn active bg-emerald-600 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-500" data-filter="all">
+          <i class="fas fa-th-large mr-2"></i>Todos
+        </button>
+        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="siu2d">
+          <i class="fas fa-gamepad mr-2"></i>SIU2D
+        </button>
+        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="drplant">
+          <i class="fas fa-leaf mr-2"></i>Dr Plant
+        </button>
+        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="dininho">
+          <i class="fas fa-star mr-2"></i>Dininho
+        </button>
+        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="dinoelai">
+          <i class="fas fa-dragon mr-2"></i>Dinoelai
+        </button>
+        <button class="filter-btn bg-slate-700 text-white px-5 py-2 rounded-full font-semibold transition-all hover:bg-emerald-600" data-filter="outros">
+          <i class="fas fa-globe mr-2"></i>Outros
+        </button>
+      </div>
+
+      <section id="videoSections" class="space-y-12"></section>
+
+      <div id="noResults" class="text-center py-12 hidden">
+        <i class="fas fa-search text-6xl text-slate-600 mb-4"></i>
+        <p class="text-xl text-slate-400">Nenhum vídeo encontrado :(</p>
+        <p class="text-slate-500">Tente outro termo ou remova os filtros.</p>
+      </div>
+    </main>
+  </div>
+
+  <div id="menuMais" class="hidden fixed right-6 bottom-6 bg-slate-800/95 backdrop-blur-lg border-2 border-emerald-500 p-6 rounded-2xl shadow-2xl w-96 z-50">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-xl flex items-center gap-2">
+        <i class="fas fa-cog text-emerald-400"></i> Configurações
+      </h3>
+      <button id="closeMaisBtn" class="text-slate-400 hover:text-white text-xl">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="space-y-3">
+      <button id="themeToggle" class="block w-full text-left py-3 px-4 hover:bg-slate-700 rounded-lg transition-all">
+        <i class="fas fa-moon mr-3 text-emerald-400"></i> Modo Escuro / Claro
+      </button>
+      <button id="fullscreenBtn" class="block w-full text-left py-3 px-4 hover:bg-slate-700 rounded-lg transition-all">
+        <i class="fas fa-expand mr-3 text-emerald-400"></i> Modo Tela Cheia
+      </button>
+      <button id="supportBtn" class="block w-full text-left py-3 px-4 hover:bg-slate-700 rounded-lg transition-all">
+        <i class="fas fa-headset mr-3 text-emerald-400"></i> Fale com o Elai (Suporte)
+      </button>
+      <hr class="my-3 border-slate-600">
+      <button id="closeMaisBtn2" class="w-full bg-red-600 hover:bg-red-500 py-3 rounded-lg font-bold transition-all">
+        <i class="fas fa-door-closed mr-2"></i> Fechar
+      </button>
+    </div>
+  </div>
+
+  <div id="scrollTop" class="hidden md:flex">
+    <i class="fas fa-arrow-up text-xl"></i>
+  </div>
+
+  <footer class="text-center py-8 text-slate-400 text-sm border-t border-emerald-500/20 mt-12">
+    <div class="container mx-auto">
+      <p class="flex items-center justify-center gap-2">
+        <i class="fas fa-seedling text-emerald-500"></i>
+        Free Game Plant • Conteúdo Seguro para Todas as Idades
+      </p>
+      <p class="mt-2">© 2024 Free Game Plant - Todos os direitos reservados</p>
+    </div>
+  </footer>
+
+  <script>
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('toggleBtn');
+    const closeSidebarBtn = document.getElementById('closeSidebar');
+    const playerFrame = document.getElementById('playerFrame');
+    const currentTitleEl = document.getElementById('currentTitle');
+    const currentCategoryEl = document.getElementById('currentCategory');
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    const shareBtn = document.getElementById('shareBtn');
+    const searchInput = document.getElementById('searchInput');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const videoSections = document.getElementById('videoSections');
+    const noResultsDiv = document.getElementById('noResults');
+    const scrollTopBtn = document.getElementById('scrollTop');
+    const maisBtn = document.getElementById('maisBtn');
+    const menuMais = document.getElementById('menuMais');
+    const closeMaisBtns = document.querySelectorAll('#closeMaisBtn, #closeMaisBtn2');
+
+    const videosByCategory = {
+      siu2d: {
+        title: 'Simulador do Incrível Universo 2D',
+        icon: 'fa-gamepad',
+        label: 'SIU2D Série',
+        videos: [
+          { id: 'OExq6YaOzTE', title: 'SIU2D - Trailer Oficial', thumb: 'https://i.ytimg.com/vi/OExq6YaOzTE/hqdefault.jpg', duration: '2:34' },
+          { id: '5cyUGh5OO_k', title: 'SIU2D - Ep.1: Criando Planetas', thumb: 'https://i.ytimg.com/vi/5cyUGh5OO_k/hqdefault.jpg', duration: '8:45' },
+          { id: 'nYK6Uv_SLeM', title: 'SIU2D - Ep.2: Modificar Astros', thumb: 'https://i.ytimg.com/vi/nYK6Uv_SLeM/hqdefault.jpg', duration: '10:12' },
+          { id: 'fVk-87v3e08', title: 'SIU2D - Loading Screen Intro', thumb: 'https://i.ytimg.com/vi/fVk-87v3e08/hqdefault.jpg', duration: '1:23' },
+          { id: 'xi64kgbQcr0', title: 'SIU2D - Traveling through the cosmos', thumb: 'https://i.ytimg.com/vi/xi64kgbQcr0/hqdefault.jpg', duration: '3:45' },
+          { id: 'LqElTS9vwvo', title: 'SIU2D - The Universal Rock Star', thumb: 'https://i.ytimg.com/vi/LqElTS9vwvo/hqdefault.jpg', duration: '4:12' }
+        ]
+      },
+      drplant: {
+        title: 'Dr Plant\'s Adventures',
+        icon: 'fa-leaf',
+        label: 'Dr Plant Adventures',
+        videos: [
+          { id: 'A9vRlmo8orM', title: 'Dr Plant ep:1 The dusty war', thumb: 'https://i.ytimg.com/vi/A9vRlmo8orM/hqdefault.jpg', duration: '' },
+          { id: 'cTwPnysZ8xE', title: 'Dr Plant ep:2 The Marine Checkmate', thumb: 'https://i.ytimg.com/vi/cTwPnysZ8xE/hqdefault.jpg', duration: '' },
+          { id: 'yw8QlT9vUOs', title: 'Dr Plant Battle: Last Man Standing', thumb: 'https://i.ytimg.com/vi/yw8QlT9vUOs/hqdefault.jpg', duration: '' }
+        ]
+      },
+      dininho: {
+        title: 'Show do Dininho',
+        icon: 'fa-star',
+        label: 'Show do Dininho',
+        videos: [
+          { id: 'hTYQddU9jfQ', title: 'Show do Dininho ep1', thumb: 'https://i.ytimg.com/vi/hTYQddU9jfQ/hqdefault.jpg', duration: '' },
+          { id: 'rHirE6Esnzs', title: 'Show do Dininho ep2', thumb: 'https://i.ytimg.com/vi/rHirE6Esnzs/hqdefault.jpg', duration: '' },
+          { id: 'kLgGOvsQMvA', title: 'Show do Dininho ep3: Soletrar Sorvete', thumb: 'https://i.ytimg.com/vi/kLgGOvsQMvA/hqdefault.jpg', duration: '' },
+          { id: 'UVIrDDgM-LE', title: 'Show do Dininho ep4', thumb: 'https://i.ytimg.com/vi/UVIrDDgM-LE/hqdefault.jpg', duration: '' }
+        ]
+      },
+      dinoelai: {
+        title: 'Dinoelai Adventures',
+        icon: 'fa-dragon',
+        label: 'Dinoelai Adventures',
+        videos: [
+          { id: 'pFu3C2PXM3o', title: 'Dinoelai ep6: Sarcastic Circus', thumb: 'https://i.ytimg.com/vi/pFu3C2PXM3o/hqdefault.jpg', duration: '' },
+          { id: 'IFlBDCQ34GQ', title: 'Dinoelai Carrot Cake trap', thumb: 'https://i.ytimg.com/vi/IFlBDCQ34GQ/hqdefault.jpg', duration: '' },
+          { id: '_aJXWseR-ng', title: "DLB's A Incrível liga do Dinoelai", thumb: 'https://i.ytimg.com/vi/_aJXWseR-ng/hqdefault.jpg', duration: '' }
+        ]
+      },
+      outros: {
+        title: 'Outros Conteúdos & Clássicos',
+        icon: 'fa-globe',
+        label: 'Outros Conteúdos',
+        videos: [
+          { id: 'p5fvlqzahN0', title: 'A Incrível Planolândia! 2D vs 3D vs 4D', thumb: 'https://i.ytimg.com/vi/p5fvlqzahN0/hqdefault.jpg', duration: '' },
+          { id: 'ThIApGczg14', title: 'The Origin of the Universe', thumb: 'https://i.ytimg.com/vi/ThIApGczg14/hqdefault.jpg', duration: '' },
+          { id: 'vJd4c4rynWg', title: 'O Maior Trauma dos OIB\'s', thumb: 'https://i.ytimg.com/vi/vJd4c4rynWg/hqdefault.jpg', duration: '' },
+          { id: 'B08X2Nugn3E', title: 'Pato De Sapato! Ep.1', thumb: 'https://i.ytimg.com/vi/B08X2Nugn3E/hqdefault.jpg', duration: '' },
+          { id: 'TOwOPlCNgWM', title: 'Zinco and Casufa Paleozoico Ep4', thumb: 'https://i.ytimg.com/vi/TOwOPlCNgWM/hqdefault.jpg', duration: '' }
+        ]
+      }
+    };
+
+    const allCards = [];
+
+    function escapeHtml(str = '') {
+      return str.replace(/[&<>'"]/g, m => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[m]));
+    }
+
+    function buildSections() {
+      videoSections.innerHTML = '';
+      Object.entries(videosByCategory).forEach(([key, group]) => {
+        const section = document.createElement('div');
+        section.className = 'playlist-section category-section';
+        section.dataset.category = key;
+        section.id = key;
+
+        section.innerHTML = `
+          <h3 class="text-2xl font-bold mb-6 flex items-center gap-3 border-l-4 border-emerald-500 pl-4">
+            <i class="fas ${group.icon} text-emerald-400 text-3xl"></i>
+            ${escapeHtml(group.title)}
+          </h3>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5"></div>
+        `;
+
+        const grid = section.querySelector('div.grid');
+
+        group.videos.forEach(video => {
+          const card = document.createElement('div');
+          card.className = 'video-card bg-slate-800/70 border border-emerald-500/10 rounded-2xl overflow-hidden shadow-lg';
+          card.dataset.category = key;
+          card.dataset.title = video.title.toLowerCase();
+          card.dataset.videoId = video.id;
+          card.dataset.videoTitle = video.title;
+
+          card.innerHTML = `
+            <img src="${video.thumb}" alt="${escapeHtml(video.title)}" class="w-full aspect-video object-cover">
+            <div class="p-3">
+              <p class="font-semibold text-sm leading-snug text-white">${escapeHtml(video.title)}</p>
+              ${video.duration ? `<p class="text-xs text-slate-400 mt-1">${escapeHtml(video.duration)}</p>` : '<p class="text-xs text-slate-400 mt-1">&nbsp;</p>'}
+            </div>
+          `;
+
+          card.addEventListener('click', () => changeVideo(video.id, video.title, group.label));
+          grid.appendChild(card);
+          allCards.push(card);
+        });
+
+        videoSections.appendChild(section);
+      });
+    }
+
+    function changeVideo(id, title, categoryLabel) {
+      playerFrame.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&controls=1&iv_load_policy=3`;
+      currentTitleEl.textContent = title;
+      currentCategoryEl.textContent = `Categoria: ${categoryLabel}`;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast(`▶️ Reproduzindo: ${title}`);
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'fixed bottom-20 right-6 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-2xl toast z-50';
+      toast.innerHTML = `<i class="fas fa-play-circle mr-2"></i>${message}`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function addToFavorites() {
+      const currentTitle = currentTitleEl.textContent;
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      if (!favorites.includes(currentTitle)) {
+        favorites.push(currentTitle);
+        localStorage.setItem('favorites', JSON.stringify(favorites));
+        showToast('❤️ Vídeo adicionado aos favoritos!');
+      } else {
+        showToast('⚠️ Este vídeo já está nos favoritos!');
+      }
+    }
+
+    function shareVideo() {
+      const currentTitle = currentTitleEl.textContent;
+      const currentUrl = window.location.href;
+      if (navigator.share) {
+        navigator.share({
+          title: currentTitle,
+          text: 'Assista este vídeo incrível no Free Game Plant!',
+          url: currentUrl,
+        }).catch(() => copyLink());
+      } else {
+        copyLink();
+      }
+    }
+
+    function copyLink() {
+      navigator.clipboard.writeText(window.location.href);
+      showToast('📋 Link copiado para a área de transferência!');
+    }
+
+    function openSidebar() { sidebar.classList.add('sidebar-visible'); }
+    function closeSidebar() { sidebar.classList.remove('sidebar-visible'); }
+    toggleBtn.onclick = openSidebar;
+    closeSidebarBtn.onclick = closeSidebar;
+
+    favoriteBtn.onclick = addToFavorites;
+    shareBtn.onclick = shareVideo;
+
+    function applyFilters() {
+      const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
+      const term = searchInput.value.trim().toLowerCase();
+      let anyVisible = false;
+
+      document.querySelectorAll('.playlist-section').forEach(section => {
+        const matchesCategory = activeFilter === 'all' || section.dataset.category === activeFilter;
+        let sectionHasVisible = false;
+
+        section.querySelectorAll('.video-card').forEach(card => {
+          const matchSearch = !term || card.dataset.title.includes(term);
+          const visible = matchesCategory && matchSearch;
+          card.style.display = visible ? 'block' : 'none';
+          if (visible) sectionHasVisible = true;
+        });
+
+        section.style.display = sectionHasVisible ? 'block' : 'none';
+        if (sectionHasVisible) anyVisible = true;
+      });
+
+      noResultsDiv.classList.toggle('hidden', anyVisible);
+    }
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => {
+          b.classList.remove('bg-emerald-600', 'active');
+          b.classList.add('bg-slate-700');
+        });
+        btn.classList.add('bg-emerald-600', 'active');
+        btn.classList.remove('bg-slate-700');
+        applyFilters();
+      });
+    });
+
+    searchInput.addEventListener('input', applyFilters);
+
+    document.querySelectorAll('.category-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const category = item.dataset.category;
+        const section = document.getElementById(category);
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          closeSidebar();
+        }
+      });
+    });
+
+    function openMais() { menuMais.classList.remove('hidden'); }
+    function closeMais() { menuMais.classList.add('hidden'); }
+    maisBtn.onclick = openMais;
+    closeMaisBtns.forEach(btn => btn.onclick = closeMais);
+
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      document.body.classList.toggle('light-mode');
+      const icon = document.querySelector('#themeToggle i');
+      icon.className = document.body.classList.contains('light-mode')
+        ? 'fas fa-sun mr-3 text-emerald-400'
+        : 'fas fa-moon mr-3 text-emerald-400';
+      closeMais();
+    });
+
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+      const player = document.querySelector('.player-wrapper');
+      if (player.requestFullscreen) player.requestFullscreen();
+      else if (player.webkitRequestFullscreen) player.webkitRequestFullscreen();
+      else if (player.msRequestFullscreen) player.msRequestFullscreen();
+      closeMais();
+    });
+
+    document.getElementById('supportBtn').addEventListener('click', () => {
+      alert('📧 Entre em contato pelo e-mail: freegameplant@contato.com\nOu pelo Instagram: @freegameplant');
+      closeMais();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!menuMais.classList.contains('hidden')) {
+        if (!menuMais.contains(e.target) && e.target !== maisBtn && !maisBtn.contains(e.target)) {
+          closeMais();
+        }
+      }
+    });
+
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 300) scrollTopBtn.classList.add('visible');
+      else scrollTopBtn.classList.remove('visible');
+    });
+    scrollTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+
+    buildSections();
+    document.querySelector('.filter-btn[data-filter="all"]').classList.add('active', 'bg-emerald-600');
+    applyFilters();
+  </script>
+</body>
+</html>
     let pageToken = "";
     const videos = [];
 
